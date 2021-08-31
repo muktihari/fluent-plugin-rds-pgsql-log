@@ -8,6 +8,7 @@ class Fluent::Plugin::RdsPgsqlLogInput < Fluent::Plugin::Input
   helpers :timer
 
   LOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2} \d{2}\:\d{2}\:\d{2} .+?):(?<host>.*?):(?<user>.*?)@(?<database>.*?):\[(?<pid>.*?)\]:(?<message_level>.*?):(?<message>.*)$/
+  STATEMENT_LOG_REGEXP = /^(?<time>\d{4}-\d{2}-\d{2} \d{2}\:\d{2}\:\d{2} .+?):(?<host>.*?):(?<user>.*?)@(?<database>.*?):\[(?<pid>.*?)\]:(?<message_level>.*?):(\s*)duration:(\s*)(?<duration>.*?)(\s)(?<duration_unit>.*?)\s+(?<statement>.*?):(\s)(?<message>.*)$/
 
   config_param :access_key_id, :string, :default => nil
   config_param :secret_access_key, :string, :default => nil
@@ -190,25 +191,32 @@ class Fluent::Plugin::RdsPgsqlLogInput < Fluent::Plugin::Input
       raw_records.each do |raw_record|
         log.debug "raw_record=#{raw_record}"
         line_match = LOG_REGEXP.match(raw_record)
+        statement_match = STATEMENT_LOG_REGEXP.match(raw_record)
 
-        unless line_match
-          # combine chain of log
-          record["message"] << "\n" + raw_record unless record.nil?
-        else
+        if line_match || statement_match
           # emit before record
           router.emit(@tag, event_time_of_row(record), record) unless record.nil?
+          record = nil
 
-          # set a record
-          record = {
-            "time" => line_match[:time],
-            "host" => line_match[:host],
-            "user" => line_match[:user],
-            "database" => line_match[:database],
-            "pid" => line_match[:pid],
-            "message_level" => line_match[:message_level],
-            "message" => line_match[:message],
-            "log_file_name" => log_file_name,
-          }
+          if statement_match
+            # only log statement
+            record = {
+              'time' => statement_match[:time],
+              'host' => statement_match[:host],
+              'user' => statement_match[:user],
+              'database' => statement_match[:database],
+              'pid' => statement_match[:pid],
+              'duration' => (Float(statement_match[:duration]) rescue 0.0),
+              'duration_unit' => statement_match[:duration_unit],
+              'statement' => statement_match[:statement],
+              'message_level' => statement_match[:message_level],
+              'message' => statement_match[:message],
+              'log_file_name' => log_file_name,
+            }
+          end
+        else
+          # combine chain of log
+          record["message"] << "\n" + raw_record unless record.nil?
         end
       end
       # emit last record

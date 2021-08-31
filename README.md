@@ -59,20 +59,27 @@ SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt (If you using amazon linux)
 ```
 
 ### json output example
-```
-
-{"time":"2015-05-30 02:19:22 UTC",
- "host":"192.168.30.175(53092)",
- "user":"testuser",
- "database":"db1",
- "pid":"9769",
- "message_level":"LOG",
- "message":"  statement: select 1;",
- "log_file_name":"error/postgresql.log.2015-05-30-02"
+```json
+{
+  "time": "2021-08-30 10:55:27 UTC",
+  "host": "192.168.30.175(53092)",
+  "user": "testuser",
+  "database": "db1",
+  "pid": "9769",
+  "duration": 600.89,
+  "duration_unit": "ms",
+  "statement": "execute lrupsc_1549_0",
+  "message_level": "LOG",
+  "message": "SELECT t.id FROM t JOIN t2 ON t2.t_id = t.id WHERE t2.content::jsonb @> $1::jsonb LIMIT 1",
+  "log_file_name":"error/postgresql.log.2021-08-30-19"
 }
 ```
 
 ## Changes
+### 
+- Only log statement instead of all database log
+- Update Regex to parse new fields: statement, duration and duration_unit. This way, message only contains SQL Query.
+
 ### 0.2.0
 - require fluentd version 0.14.0
 
